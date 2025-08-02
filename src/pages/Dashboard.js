@@ -3,8 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { booksAPI } from '../services/api';
 import Navbar from '../components/Navbar';
 import BookModal from '../components/BookModal';
-import BookTable from '../components/BookTable';
-import BookStats from '../components/BookStats';
+import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
   const [books, setBooks] = useState([]);
@@ -16,6 +15,8 @@ const Dashboard = () => {
     tag: ''
   });
   const [loading, setLoading] = useState(true);
+   const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchBooks();
@@ -88,6 +89,23 @@ const Dashboard = () => {
     }
   };
 
+  const handleStatusChange = async (bookId, newStatus) => {
+    try {
+      const bookToUpdate = books.find(book => book._id === bookId);
+      const updatedBookData = {
+        ...bookToUpdate,
+        status: newStatus
+      };
+      
+      const response = await booksAPI.update(bookId, updatedBookData);
+      setBooks(books.map(book => 
+        book._id === bookId ? response.data : book
+      ));
+    } catch (error) {
+      console.error('Error updating book status:', error);
+    }
+  };
+
   const openEditModal = (book) => {
     setEditingBook(book);
     setShowModal(true);
@@ -98,63 +116,183 @@ const Dashboard = () => {
     setEditingBook(null);
   };
 
+    const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  // Calculate stats
+  const stats = {
+    total: books.length,
+    wantToRead: books.filter(book => book.status === 'Want to Read').length,
+    reading: books.filter(book => book.status === 'Reading').length,
+    completed: books.filter(book => book.status === 'Completed').length,
+  };
+
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+      <div className="loading">
+        <div className="spinner"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
+    <div className="dashboard">
+ 
       
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <BookStats books={books} />
-          
-          <div className="mt-8 bg-white shadow rounded-lg">
-            <div className="px-4 py-5 border-b border-gray-200 sm:px-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg leading-6 font-medium text-gray-900">
-                  My Books
-                </h3>
-                <button
-                  onClick={() => setShowModal(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-                >
-                  Add New Book
-                </button>
+      <div className="dashboard-container">
+        {/* Header Section */}
+        <div className="dashboard-header">
+          <h1>  📚 Personal Book Manager</h1>
+          <div className="user-section">
+            <span>Welcome, {user?.name}</span>
+            <button  onClick={handleLogout} className="logout-btn">Logout</button>
+          </div>
+        </div>
+
+        {/* Stats Section */}
+        <div className="stats-section">
+          <div className="stat-item">
+            <span className="stat-label">Total Books:</span>
+            <span className="stat-value">{stats.total}</span>
+          </div>
+          <div className="stat-group">
+            <div className="stat-item">
+              <span className="stat-label">Want to read:</span>
+              <span className="stat-value">{stats.wantToRead}</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">Reading:</span>
+              <span className="stat-value">{stats.reading}</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">Completed:</span>
+              <span className="stat-value">{stats.completed}</span>
+            </div>
+          </div>
+          <button 
+            className="add-book-btn"
+            onClick={() => setShowModal(true)}
+          >
+            Add Book
+          </button>
+        </div>
+
+        {/* Main Content Area */}
+        <div className="main-content">
+          {/* Sidebar Filters */}
+          <div className="sidebar">
+            <div className="filter-section">
+              <h3>Filter</h3>
+              <div className="filter-options">
+                <label>
+                  <input 
+                    type="checkbox" 
+                    checked={filters.status === 'Completed'}
+                    onChange={(e) => setFilters({
+                      ...filters, 
+                      status: e.target.checked ? 'Completed' : ''
+                    })}
+                  />
+                  Completed
+                </label>
+                <label>
+                  <input 
+                    type="checkbox" 
+                    checked={filters.status === 'Want to Read'}
+                    onChange={(e) => setFilters({
+                      ...filters, 
+                      status: e.target.checked ? 'Want to Read' : ''
+                    })}
+                  />
+                  Want to Read
+                </label>
+                <label>
+                  <input 
+                    type="checkbox" 
+                    checked={filters.status === 'Reading'}
+                    onChange={(e) => setFilters({
+                      ...filters, 
+                      status: e.target.checked ? 'Reading' : ''
+                    })}
+                  />
+                  Reading
+                </label>
               </div>
-              
-              <div className="mt-4 flex space-x-4">
-                <select
-                  value={filters.status}
-                  onChange={(e) => setFilters({...filters, status: e.target.value})}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">All Status</option>
-                  <option value="Want to Read">Want to Read</option>
-                  <option value="Reading">Reading</option>
-                  <option value="Completed">Completed</option>
-                </select>
-                
+              <div className="tag-filter">
+                <label>Tag filter (input or select)</label>
                 <input
                   type="text"
-                  placeholder="Filter by tag..."
+                  placeholder="Enter tag..."
                   value={filters.tag}
                   onChange={(e) => setFilters({...filters, tag: e.target.value})}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="tag-input"
                 />
               </div>
             </div>
-            
-            <BookTable
-              books={filteredBooks}
-              onEdit={openEditModal}
-              onDelete={handleDeleteBook}
-            />
+          </div>
+
+          {/* Books Table */}
+          <div className="books-table-container">
+            <table className="books-table">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Author</th>
+                  <th>Tags</th>
+                  <th>Status (changeable)</th>
+                  <th>Edit</th>
+                  <th>Delete</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredBooks.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="no-books">
+                      No books found. Add your first book to get started!
+                    </td>
+                  </tr>
+                ) : (
+                  filteredBooks.map((book) => (
+                    <tr key={book._id}>
+                      <td>{book.title}</td>
+                      <td>{book.author}</td>
+                      <td>
+                        {book.tags.length > 0 ? book.tags.join(', ') : '-'}
+                      </td>
+                      <td>
+                        <select
+                          value={book.status}
+                          onChange={(e) => handleStatusChange(book._id, e.target.value)}
+                          className="status-select"
+                        >
+                          <option value="Want to Read">Want to Read</option>
+                          <option value="Reading">Reading</option>
+                          <option value="Completed">Completed</option>
+                        </select>
+                      </td>
+                      <td>
+                        <button
+                          onClick={() => openEditModal(book)}
+                          className="edit-btn"
+                        >
+                          Edit
+                        </button>
+                      </td>
+                      <td>
+                        <button
+                          onClick={() => handleDeleteBook(book._id)}
+                          className="delete-btn"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
